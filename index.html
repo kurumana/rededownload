@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaveVid - Baixar Vídeos sem Marca d'Água</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Space Grotesk', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --bg: #06060a;
+            --card: #0e0e14;
+            --card-alt: #15151e;
+            --accent: #00D4AA;
+            --accent-dim: rgba(0,212,170,0.12);
+            --accent-glow: rgba(0,212,170,0.35);
+            --red: #FF4757;
+            --red-dim: rgba(255,71,87,0.12);
+            --orange: #FF9F43;
+            --text: #eeeef2;
+            --muted: #5e5e78;
+            --border: #1c1c2a;
+        }
+        body { background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; overflow-x: hidden; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        /* Fundo animado */
+        .bg-mesh { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .bg-mesh::before, .bg-mesh::after {
+            content: ''; position: absolute; border-radius: 50%; filter: blur(140px); opacity: 0.25;
+            animation: meshFloat 22s ease-in-out infinite;
+        }
+        .bg-mesh::before { width: 650px; height: 650px; background: radial-gradient(circle, var(--accent), transparent 70%); top: -250px; right: -150px; }
+        .bg-mesh::after { width: 550px; height: 550px; background: radial-gradient(circle, var(--red), transparent 70%); bottom: -200px; left: -120px; animation-delay: -11s; animation-direction: reverse; }
+        @keyframes meshFloat {
+            0%,100% { transform: translate(0,0) scale(1); }
+            33% { transform: translate(40px,-35px) scale(1.08); }
+            66% { transform: translate(-25px,45px) scale(0.94); }
+        }
+        .grid-bg {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background-image: linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+            background-size: 64px 64px;
+        }
+
+        /* Input com glow */
+        .input-wrap { position: relative; }
+        .input-wrap::before {
+            content: ''; position: absolute; inset: -2px; border-radius: 18px; z-index: -1;
+            background: linear-gradient(135deg, var(--accent), var(--red), var(--accent));
+            background-size: 300% 300%; animation: gShift 5s ease infinite; opacity: 0; transition: opacity .4s;
+        }
+        .input-wrap:focus-within::before { opacity: 1; }
+        @keyframes gShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+
+        /* Botões */
+        .btn-accent {
+            background: linear-gradient(135deg, var(--accent), #00b894); color: #000; font-weight: 700;
+            padding: 14px 32px; border-radius: 14px; border: none; cursor: pointer; transition: all .3s; font-size: 15px;
+        }
+        .btn-accent:hover { transform: translateY(-2px); box-shadow: 0 8px 32px var(--accent-glow); }
+        .btn-accent:active { transform: translateY(0); }
+        .btn-accent:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-ghost {
+            background: var(--card-alt); color: var(--text); font-weight: 500; padding: 12px 22px;
+            border-radius: 12px; border: 1px solid var(--border); cursor: pointer; transition: all .3s; font-size: 14px;
+        }
+        .btn-ghost:hover { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+
+        .btn-dl {
+            display: flex; align-items: center; gap: 10px; padding: 13px 24px; border-radius: 12px;
+            font-weight: 600; font-size: 14px; cursor: pointer; transition: all .3s; border: 1px solid var(--border);
+            background: var(--card-alt); color: var(--text);
+        }
+        .btn-dl:hover { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); transform: translateY(-1px); }
+        .btn-dl.primary-dl { background: linear-gradient(135deg, var(--accent), #00b894); color: #000; border-color: transparent; }
+        .btn-dl.primary-dl:hover { box-shadow: 0 6px 24px var(--accent-glow); color: #000; }
+
+        /* Cards */
+        .g-card {
+            background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+            transition: all .35s;
+        }
+        .g-card:hover { border-color: rgba(0,212,170,.25); transform: translateY(-5px); box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+
+        /* Resultado */
+        .result-card {
+            background: var(--card); border: 1px solid var(--border); border-radius: 22px;
+            overflow: hidden; animation: slideUp .5s cubic-bezier(.16,1,.3,1);
+        }
+        @keyframes slideUp { from { opacity:0; transform:translateY(28px) } to { opacity:1; transform:translateY(0) } }
+
+        /* Toast */
+        .toast-box { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast {
+            padding: 14px 20px; border-radius: 14px; font-size: 13px; font-weight: 500;
+            display: flex; align-items: center; gap: 10px; max-width: 400px; backdrop-filter: blur(16px);
+            animation: tIn .4s ease, tOut .4s ease 3.2s forwards;
+        }
+        .toast-ok { background: rgba(0,212,170,.13); border: 1px solid rgba(0,212,170,.28); color: var(--accent); }
+        .toast-err { background: rgba(255,71,87,.13); border: 1px solid rgba(255,71,87,.28); color: var(--red); }
+        .toast-inf { background: rgba(99,102,241,.13); border: 1px solid rgba(99,102,241,.28); color: #818cf8; }
+        @keyframes tIn { from{opacity:0;transform:translateX(80px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes tOut { from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(80px)} }
+
+        /* Badges */
+        .badge-tt { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,71,87,.3); }
+        .badge-kw { background: rgba(255,159,67,.12); color: var(--orange); border: 1px solid rgba(255,159,67,.3); }
+
+        /* Spinner */
+        .spin { width: 18px; height: 18px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: sp .6s linear infinite; display: inline-block; }
+        @keyframes sp { to { transform: rotate(360deg) } }
+
+        /* Progresso */
+        .prog-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+        .prog-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #00b894); border-radius: 2px; transition: width .3s; animation: pPulse 1.5s ease-in-out infinite; }
+        @keyframes pPulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+        /* FAQ */
+        .faq-item { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color .3s; }
+        .faq-item:hover { border-color: rgba(0,212,170,.2); }
+        .faq-head { padding: 18px 22px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--card); user-select: none; }
+        .faq-head i { transition: transform .3s; color: var(--accent); font-size: 13px; }
+        .faq-item.on .faq-head i { transform: rotate(180deg); }
+        .faq-body { max-height: 0; overflow: hidden; transition: max-height .45s ease, padding .3s; background: var(--card); }
+        .faq-item.on .faq-body { max-height: 250px; padding: 0 22px 18px; }
+
+        /* Thumbnail hover */
+        .thumb-wrap { position: relative; overflow: hidden; border-radius: 14px; flex-shrink: 0; }
+        .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
+        .thumb-wrap:hover img { transform: scale(1.06); }
+        .thumb-ov { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .3s; border-radius: 14px; }
+        .thumb-wrap:hover .thumb-ov { opacity: 1; }
+
+        /* Histórico */
+        .hist-panel {
+            position: fixed; top: 0; right: -400px; width: 380px; height: 100vh;
+            background: var(--card); border-left: 1px solid var(--border); z-index: 1001;
+            transition: right .4s cubic-bezier(.16,1,.3,1); overflow-y: auto;
+        }
+        .hist-panel.open { right: 0; }
+        .hist-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; opacity: 0; pointer-events: none; transition: opacity .3s; }
+        .hist-bg.open { opacity: 1; pointer-events: all; }
+
+        /* Reveal */
+        .reveal { opacity: 0; transform: translateY(28px); transition: all .65s ease; }
+        .reveal.vis { opacity: 1; transform: translateY(0); }
+
+        /* Floating shapes */
+        .float-shape {
+            position: absolute; border-radius: 16px; opacity: .04; pointer-events: none;
+            border: 2px solid var(--accent);
+        }
+        .float-shape:nth-child(1) { width: 80px; height: 80px; top: 15%; left: 8%; animation: fShape 18s ease-in-out infinite; }
+        .float-shape:nth-child(2) { width: 50px; height: 50px; top: 60%; right: 12%; animation: fShape 14s ease-in-out infinite reverse; border-color: var(--red); }
+        .float-shape:nth-child(3) { width: 120px; height: 40px; bottom: 20%; left: 15%; animation: fShape 20s ease-in-out infinite 3s; border-radius: 20px; }
+        @keyframes fShape {
+            0%,100%{transform:translate(0,0) rotate(0deg)} 25%{transform:translate(20px,-15px) rotate(5deg)} 50%{transform:translate(-10px,25px) rotate(-3deg)} 75%{transform:translate(15px,10px) rotate(4deg)}
+        }
+
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+        @media (max-width: 640px) { .hist-panel { width: 100%; right: -100%; } }
+    </style>
+</head>
+<body>
+    <!-- Fundo -->
+    <div class="bg-mesh"></div>
+    <div class="grid-bg"></div>
+
+    <!-- Toasts -->
+    <div id="toasts" class="toast-box"></div>
+
+    <!-- Histórico -->
+    <div id="histBg" class="hist-bg" onclick="toggleHist()"></div>
+    <aside id="histPanel" class="hist-panel">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-bold">Historico</h2>
+                <button onclick="toggleHist()" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/5 transition"><i class="fas fa-times text-sm"></i></button>
+            </div>
+            <div id="histList"></div>
+            <button onclick="clearHist()" class="btn-ghost w-full mt-4 text-sm" style="color:var(--red);border-color:rgba(255,71,87,.2)">
+                <i class="fas fa-trash-alt mr-2"></i>Limpar historico
+            </button>
+        </div>
+    </aside>
+
+    <!-- Conteúdo -->
+    <div class="relative z-10 min-h-screen flex flex-col">
+
+        <!-- Nav -->
+        <nav class="w-full px-6 py-5 flex items-center justify-between max-w-6xl mx-auto">
+            <a href="#" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:var(--accent-dim);border:1px solid rgba(0,212,170,.25)">
+                    <i class="fas fa-download text-sm" style="color:var(--accent)"></i>
+                </div>
+                <span class="text-xl font-extrabold tracking-tight">Save<span style="color:var(--accent)">Vid</span></span>
+            </a>
+            <button onclick="toggleHist()" class="btn-ghost text-sm flex items-center gap-2" aria-label="Abrir historico">
+                <i class="fas fa-clock-rotate-left"></i>
+                <span class="hidden sm:inline">Historico</span>
+            </button>
+        </nav>
+
+        <main class="flex-1">
+            <!-- Hero -->
+            <header class="relative px-6 pt-12 pb-8 max-w-3xl mx-auto text-center">
+                <div class="float-shape"></div>
+                <div class="float-shape"></div>
+                <div class="float-shape"></div>
+
+                <div class="flex items-center justify-center gap-3 mb-6">
+                    <span class="badge-tt text-xs font-semibold px-3 py-1.5 rounded-full">TikTok</span>
+                    <span class="badge-kw text-xs font-semibold px-3 py-1.5 rounded-full">Kwai</span>
+                </div>
+
+                <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight mb-5 tracking-tight">
+                    Sem Marca d'Agua.<br>
+                    <span style="background:linear-gradient(135deg,var(--accent),#00b894,var(--accent));background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:gShift 4s ease infinite">Sem Complicacao.</span>
+                </h1>
+                <p class="text-base sm:text-lg max-w-xl mx-auto mb-10" style="color:var(--muted)">
+                    Cole o link do video e baixe em alta qualidade, direto do navegador. Gratis, rapido e sem limite.
+                </p>
+
+                <!-- Input -->
+                <div class="input-wrap max-w-2xl mx-auto">
+                    <div class="flex items-center gap-2 p-2 rounded-2xl" style="background:var(--card);border:1px solid var(--border)">
+                        <div class="flex-1 flex items-center gap-3 px-3">
+                            <i class="fas fa-link text-sm" style="color:var(--muted)"></i>
+                            <input
+                                id="urlInput"
+                                type="url"
+                                placeholder="Cole o link do TikTok ou Kwai aqui..."
+                                class="flex-1 bg-transparent outline-none text-sm sm:text-base py-3 placeholder:text-zinc-600"
+                                autocomplete="off"
+                                spellcheck="false"
+                                aria-label="URL do video"
+                            >
+                        </div>
+                        <button onclick="pasteFromClipboard()" class="btn-ghost text-xs sm:text-sm px-3 sm:px-4 py-2.5 flex items-center gap-2 whitespace-nowrap" title="Colar do clipboard">
+                            <i class="fas fa-paste"></i>
+                            <span class="hidden sm:inline">Colar</span>
+                        </button>
+                        <button id="btnSearch" onclick="handleSearch()" class="btn-accent text-sm px-5 sm:px-7 py-3 flex items-center gap-2 whitespace-nowrap">
+                            <i class="fas fa-arrow-down"></i>
+                            <span>Buscar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Barra de progresso -->
+                <div id="progressWrap" class="max-w-2xl mx-auto mt-4 hidden">
+                    <div class="prog-bar"><div id="progressFill" class="prog-fill" style="width:0%"></div></div>
+                    <p id="progressText" class="text-xs mt-2" style="color:var(--muted)">Processando video...</p>
+                </div>
+
+                <!-- Detecção de plataforma -->
+                <div id="platformHint" class="mt-4 text-sm hidden" style="color:var(--muted)"></div>
+            </header>
+
+            <!-- Resultado -->
+            <section id="resultSection" class="px-6 pb-12 max-w-2xl mx-auto hidden">
+                <div class="result-card">
+                    <div class="flex flex-col sm:flex-row gap-5 p-5">
+                        <!-- Thumbnail -->
+                        <div class="thumb-wrap w-full sm:w-44 h-56 sm:h-auto">
+                            <img id="resThumb" src="" alt="Thumbnail do video">
+                            <div class="thumb-ov">
+                                <div class="w-14 h-14 rounded-full flex items-center justify-center" style="background:rgba(0,0,0,.6);backdrop-filter:blur(8px)">
+                                    <i class="fas fa-play text-lg" style="color:#fff"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Info -->
+                        <div class="flex-1 flex flex-col justify-between min-w-0">
+                            <div>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span id="resBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full"></span>
+                                    <span id="resAuthor" class="text-xs truncate" style="color:var(--muted)"></span>
+                                </div>
+                                <h3 id="resTitle" class="text-base font-semibold leading-snug mb-1 line-clamp-2"></h3>
+                                <p id="resStats" class="text-xs" style="color:var(--muted)"></p>
+                            </div>
+                            <!-- Botões de download -->
+                            <div class="flex flex-wrap gap-2.5 mt-5">
+                                <button id="btnHD" onclick="downloadFile('hd')" class="btn-dl primary-dl">
+                                    <i class="fas fa-film"></i> HD Sem Marca d'Agua
+                                </button>
+                                <button id="btnSD" onclick="downloadFile('sd')" class="btn-dl">
+                                    <i class="fas fa-video"></i> SD
+                                </button>
+                                <button id="btnAudio" onclick="downloadFile('audio')" class="btn-dl">
+                                    <i class="fas fa-music"></i> MP3
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Features -->
+            <section class="px-6 py-20 max-w-5xl mx-auto">
+                <div class="text-center mb-14 reveal">
+                    <h2 class="text-3xl sm:text-4xl font-extrabold mb-4">Por que usar o SaveVid?</h2>
+                    <p style="color:var(--muted)" class="max-w-lg mx-auto">Ferramenta simples e poderosa para salvar seus videos favoritos sem perder qualidade.</p>
+                </div>
+                <div class="grid sm:grid-cols-3 gap-5">
+                    <div class="g-card p-7 reveal" style="transition-delay:.1s">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-5" style="background:var(--accent-dim)">
+                            <i class="fas fa-droplet-slash text-lg" style="color:var(--accent)"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2">Sem Marca d'Agua</h3>
+                        <p class="text-sm leading-relaxed" style="color:var(--muted)">Baixe videos limpos, sem nenhuma marca d'agua sobreposta. Qualidade original preservada.</p>
+                    </div>
+                    <div class="g-card p-7 reveal" style="transition-delay:.2s">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-5" style="background:var(--red-dim)">
+                            <i class="fas fa-bolt text-lg" style="color:var(--red)"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2">Ultra Rapido</h3>
+                        <p class="text-sm leading-relaxed" style="color:var(--muted)">Processamento instantaneo sem filas. Seu video fica pronto para download em segundos.</p>
+                    </div>
+                    <div class="g-card p-7 reveal" style="transition-delay:.3s">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-5" style="background:rgba(255,159,67,.12)">
+                            <i class="fas fa-shield-halved text-lg" style="color:var(--orange)"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2">Privado e Seguro</h3>
+                        <p class="text-sm leading-relaxed" style="color:var(--muted)">Nenhum dado e armazenado em servidores. Tudo processado diretamente no seu navegador.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Passos -->
+            <section class="px-6 py-20 max-w-4xl mx-auto">
+                <div class="text-center mb-14 reveal">
+                    <h2 class="text-3xl sm:text-4xl font-extrabold mb-4">Como funciona?</h2>
+                    <p style="color:var(--muted)">Tres passos simples para baixar qualquer video.</p>
+                </div>
+                <div class="grid sm:grid-cols-3 gap-8">
+                    <div class="text-center reveal" style="transition-delay:.1s">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl font-extrabold" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,212,170,.2)">1</div>
+                        <h3 class="font-bold mb-2">Cole o Link</h3>
+                        <p class="text-sm" style="color:var(--muted)">Copie o link do video no TikTok ou Kwai e cole no campo acima.</p>
+                    </div>
+                    <div class="text-center reveal" style="transition-delay:.2s">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl font-extrabold" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,212,170,.2)">2</div>
+                        <h3 class="font-bold mb-2">Busque o Video</h3>
+                        <p class="text-sm" style="color:var(--muted)">Clique em Buscar e aguarde o processamento automatico do video.</p>
+                    </div>
+                    <div class="text-center reveal" style="transition-delay:.3s">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl font-extrabold" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,212,170,.2)">3</div>
+                        <h3 class="font-bold mb-2">Baixe</h3>
+                        <p class="text-sm" style="color:var(--muted)">Escolha entre HD, SD ou apenas audio e faca o download direto.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FAQ -->
+            <section class="px-6 py-20 max-w-2xl mx-auto">
+                <div class="text-center mb-14 reveal">
+                    <h2 class="text-3xl sm:text-4xl font-extrabold mb-4">Perguntas Frequentes</h2>
+                </div>
+                <div class="flex flex-col gap-3 reveal" id="faqContainer">
+                    <div class="faq-item">
+                        <div class="faq-head" onclick="toggleFaq(this)">
+                            <span class="text-sm font-semibold">E gratis mesmo? Tem algum limite?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-body">
+                            <p class="text-sm" style="color:var(--muted)">Sim, totalmente gratis e sem limite de downloads. Voce pode baixar quantos videos quiser, sem precisar criar conta ou instalar nada.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-head" onclick="toggleFaq(this)">
+                            <span class="text-sm font-semibold">O video realmente fica sem marca d'agua?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-body">
+                            <p class="text-sm" style="color:var(--muted)">Sim! Utilizamos servicos que extraem o video original sem a marca d'agua do TikTok ou Kwai. A qualidade e a mesma do upload original.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-head" onclick="toggleFaq(this)">
+                            <span class="text-sm font-semibold">Funciona no celular?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-body">
+                            <p class="text-sm" style="color:var(--muted)">Sim, o site e totalmente responsivo e funciona no navegador do celular. Basta colar o link e baixar normalmente.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-head" onclick="toggleFaq(this)">
+                            <span class="text-sm font-semibold">Meus dados ficam salvos em algum lugar?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-body">
+                            <p class="text-sm" style="color:var(--muted)">Nao. O historico de downloads fica salvo apenas no seu navegador (localStorage). Nenhum dado e enviado para servidores externos alem das APIs de processamento.</p>
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-head" onclick="toggleFaq(this)">
+                            <span class="text-sm font-semibold">Posso baixar videos privados?</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-body">
+                            <p class="text-sm" style="color:var(--muted)">Nao, apenas videos publicos podem ser baixados. Videos privados ou de contas restritas nao sao acessiveis pela ferramenta.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="px-6 py-8 border-t" style="border-color:var(--border)">
+            <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm" style="color:var(--muted)">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold" style="color:var(--text)">SaveVid</span>
+                    <span>&copy; 2025</span>
+                </div>
+                <p>Ferramenta gratuita para download de videos sem marca d'agua.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        /* ===================== ESTADO ===================== */
+        let currentResult = null; // dados do video encontrado
+        let history = JSON.parse(localStorage.getItem('sv_hist') || '[]');
+
+        /* ===================== ELEMENTOS ===================== */
+        const urlInput = document.getElementById('urlInput');
+        const btnSearch = document.getElementById('btnSearch');
+        const progressWrap = document.getElementById('progressWrap');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const platformHint = document.getElementById('platformHint');
+        const resultSection = document.getElementById('resultSection');
+
+        /* ===================== DETECÇÃO DE PLATAFORMA ===================== */
+        function detectPlatform(url) {
+            if (/tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com/i.test(url)) return 'tiktok';
+            if (/kwai\.com|kwai\.video|kuaishou\.com/i.test(url)) return 'kwai';
+            return null;
+        }
+
+        /* Atualiza hint em tempo real */
+        urlInput.addEventListener('input', () => {
+            const p = detectPlatform(urlInput.value.trim());
+            if (p) {
+                platformHint.classList.remove('hidden');
+                platformHint.innerHTML = p === 'tiktok'
+                    ? '<i class="fas fa-check-circle mr-1" style="color:var(--red)"></i> Link do TikTok detectado'
+                    : '<i class="fas fa-check-circle mr-1" style="color:var(--orange)"></i> Link do Kwai detectado';
+            } else {
+                platformHint.classList.add('hidden');
+            }
+        });
+
+        /* Enter para buscar */
+        urlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleSearch();
+        });
+
+        /* Ctrl+V global */
+        document.addEventListener('paste', (e) => {
+            if (document.activeElement !== urlInput) {
+                urlInput.focus();
+            }
+        });
+
+        /* ===================== COLAR DO CLIPBOARD ===================== */
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                urlInput.value = text;
+                urlInput.dispatchEvent(new Event('input'));
+                toast('Link colado!', 'ok');
+            } catch {
+                toast('Nao foi possivel acessar a area de transferencia. Cole manualmente com Ctrl+V.', 'err');
+            }
+        }
+
+        /* ===================== BUSCA PRINCIPAL ===================== */
+        async function handleSearch() {
+            const url = urlInput.value.trim();
+            if (!url) { toast('Cole um link de video do TikTok ou Kwai.', 'err'); return; }
+
+            const platform = detectPlatform(url);
+            if (!platform) { toast('Link invalido. Cole um link do TikTok ou Kwai.', 'err'); return; }
+
+            /* UI: loading */
+            setLoading(true);
+            resultSection.classList.add('hidden');
+            currentResult = null;
+
+            try {
+                let result;
+                if (platform === 'tiktok') {
+                    result = await fetchTikTok(url);
+                } else {
+                    result = await fetchKwai(url);
+                }
+
+                if (result.success) {
+                    currentResult = result;
+                    showResult(result, platform);
+                    saveToHistory(result, platform, url);
+                    toast('Video encontrado! Escolha a qualidade para baixar.', 'ok');
+                } else {
+                    toast(result.error || 'Nao foi possivel encontrar o video.', 'err');
+                }
+            } catch (err) {
+                console.error(err);
+                toast('Erro de conexao. Verifique sua internet e tente novamente.', 'err');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        /* ===================== TIKTOK API (tikwm) ===================== */
+        async function fetchTikTok(url) {
+            const formData = new FormData();
+            formData.append('url', url);
+            formData.append('hd', '1');
+
+            const res = await fetch('https://www.tikwm.com/api/', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) throw new Error('Erro na API');
+
+            const json = await res.json();
+
+            if (json.code !== 0 || !json.data) {
+                return { success: false, error: json.msg || 'Video nao encontrado ou link invalido.' };
+            }
+
+            const d = json.data;
+            return {
+                success: true,
+                hdUrl: d.hdplay || d.play,
+                sdUrl: d.play,
+                audioUrl: d.music,
+                thumb: d.cover || d.origin_cover,
+                title: d.title || 'Video sem titulo',
+                author: d.author?.nickname || d.author?.unique_id || 'Desconhecido',
+                stats: `${formatNum(d.play_count)} visualizacoes · ${formatNum(d.digg_count)} curtidas`
+            };
+        }
+
+        /* ===================== KWAI (multi-estratégia) ===================== */
+        async function fetchKwai(url) {
+            /* Estratégia 1: tentar tikwm (raramente funciona para Kwai, mas tenta) */
+            try {
+                const formData = new FormData();
+                formData.append('url', url);
+                const res = await fetch('https://www.tikwm.com/api/', { method: 'POST', body: formData });
+                const json = await res.json();
+                if (json.code === 0 && json.data?.play) {
+                    const d = json.data;
+                    return {
+                        success: true,
+                        hdUrl: d.hdplay || d.play,
+                        sdUrl: d.play,
+                        audioUrl: d.music || null,
+                        thumb: d.cover || '',
+                        title: d.title || 'Video Kwai',
+                        author: d.author?.nickname || 'Desconhecido',
+                        stats: ''
+                    };
+                }
+            } catch (e) { /* ignora */ }
+
+            /* Estratégia 2: proxy CORS para extrair URL da página */
+            try {
+                updateProgress(60, 'Extraindo video do Kwai...');
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                const res = await fetch(proxyUrl);
+                const html = await res.text();
+
+                /* Procura por URLs de vídeo no HTML da página */
+                const patterns = [
+                    /"videoUrl"\s*:\s*"(https?:\/\/[^"]+)"/,
+                    /"src"\s*:\s*"(https?:\/\/[^"]+\.mp4[^"]*)"/,
+                    /https?:\/\/[a-z0-9-]+\.kwai\.[a-z.]+\/[a-z0-9/_-]+\.mp4[^\s"']*/i,
+                    /https?:\/\/[a-z0-9-]+\.(kuaishou|gifshow|yximgs)\.[a-z.]+\/[^\s"']+\.mp4[^\s"']*/i
+                ];
+
+                for (const pat of patterns) {
+                    const match = html.match(pat);
+                    if (match) {
+                        let vidUrl = match[1] || match[0];
+                        vidUrl = vidUrl.replace(/\\u002F/g, '/').replace(/&amp;/g, '&');
+                        /* Tenta encontrar thumbnail */
+                        const thumbMatch = html.match(/"coverUrl"\s*:\s*"(https?:\/\/[^"]+)"/) || html.match(/"poster"\s*:\s*"(https?:\/\/[^"]+)"/);
+                        const titleMatch = html.match(/"title"\s*:\s*"([^"]+)"/);
+                        const authorMatch = html.match(/"userName"\s*:\s*"([^"]+)"/) || html.match(/"author"\s*:\s*"([^"]+)"/);
+
+                        return {
+                            success: true,
+                            hdUrl: vidUrl,
+                            sdUrl: vidUrl,
+                            audioUrl: null,
+                            thumb: thumbMatch ? thumbMatch[1].replace(/\\u002F/g, '/') : '',
+                            title: titleMatch ? titleMatch[1] : 'Video Kwai',
+                            author: authorMatch ? authorMatch[1] : 'Desconhecido',
+                            stats: ''
+                        };
+                    }
+                }
+            } catch (e) { /* ignora */ }
+
+            return {
+                success: false,
+                error: 'Nao foi possivel processar este link do Kwai. Tente usar um link direto do video ou tente novamente mais tarde.'
+            };
+        }
+
+        /* ===================== EXIBIR RESULTADO ===================== */
+        function showResult(r, platform) {
+            document.getElementById('resThumb').src = r.thumb || '';
+            document.getElementById('resTitle').textContent = r.title;
+            document.getElementById('resAuthor').innerHTML = `<i class="fas fa-user-circle mr-1"></i>${r.author}`;
+            document.getElementById('resStats').textContent = r.stats;
+
+            const badge = document.getElementById('resBadge');
+            if (platform === 'tiktok') {
+                badge.className = 'badge-tt text-xs font-semibold px-2.5 py-1 rounded-full';
+                badge.textContent = 'TikTok';
+            } else {
+                badge.className = 'badge-kw text-xs font-semibold px-2.5 py-1 rounded-full';
+                badge.textContent = 'Kwai';
+            }
+
+            /* Mostra/esconde botão de áudio */
+            document.getElementById('btnAudio').style.display = r.audioUrl ? 'flex' : 'none';
+
+            resultSection.classList.remove('hidden');
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        /* ===================== DOWNLOAD ===================== */
+        async function downloadFile(type) {
+            if (!currentResult) return;
+
+            let url, filename, label;
+            if (type === 'hd') {
+                url = currentResult.hdUrl;
+                filename = sanitizeFilename(currentResult.title) + '_HD.mp4';
+                label = 'HD';
+            } else if (type === 'sd') {
+                url = currentResult.sdUrl;
+                filename = sanitizeFilename(currentResult.title) + '.mp4';
+                label = 'SD';
+            } else {
+                url = currentResult.audioUrl;
+                filename = sanitizeFilename(currentResult.title) + '.mp3';
+                label = 'MP3';
+            }
+
+            if (!url) { toast('Link de download nao disponivel para esta opcao.', 'err'); return; }
+
+            /* Desabilita botões durante download */
+            setDlButtonsDisabled(true);
+
+            try {
+                toast(`Baixando ${label}...`, 'inf');
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Falha no download');
+
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+                toast(`${label} baixado com sucesso!`, 'ok');
+            } catch (err) {
+                console.error(err);
+                /* Fallback: abre em nova aba */
+                window.open(url, '_blank');
+                toast('Se o download nao iniciar automaticamente, clique com botao direito no video e selecione "Salvar como".', 'inf');
+            } finally {
+                setDlButtonsDisabled(false);
+            }
+        }
+
+        function setDlButtonsDisabled(disabled) {
+            document.querySelectorAll('.btn-dl').forEach(btn => {
+                btn.disabled = disabled;
+                btn.style.opacity = disabled ? '.5' : '1';
+                btn.style.pointerEvents = disabled ? 'none' : 'auto';
+            });
+        }
+
+        /* ===================== UI HELPERS ===================== */
+        function setLoading(on) {
+            if (on) {
+                btnSearch.disabled = true;
+                btnSearch.innerHTML = '<span class="spin"></span><span>Buscando...</span>';
+                progressWrap.classList.remove('hidden');
+                updateProgress(20, 'Conectando ao servidor...');
+            } else {
+                btnSearch.disabled = false;
+                btnSearch.innerHTML = '<i class="fas fa-arrow-down"></i><span>Buscar</span>';
+                progressWrap.classList.add('hidden');
+                progressFill.style.width = '0%';
+            }
+        }
+
+        function updateProgress(pct, text) {
+            progressFill.style.width = pct + '%';
+            if (text) progressText.textContent = text;
+        }
+
+        function toast(msg, type) {
+            const box = document.getElementById('toasts');
+            const el = document.createElement('div');
+            el.className = `toast toast-${type}`;
+            const icons = { ok: 'fa-check-circle', err: 'fa-circle-exclamation', inf: 'fa-circle-info' };
+            el.innerHTML = `<i class="fas ${icons[type] || icons.inf}"></i><span>${msg}</span>`;
+            box.appendChild(el);
+            setTimeout(() => el.remove(), 3800);
+        }
+
+        function toggleFaq(head) {
+            head.parentElement.classList.toggle('on');
+        }
+
+        /* ===================== HISTÓRICO ===================== */
+        function toggleHist() {
+            document.getElementById('histPanel').classList.toggle('open');
+            document.getElementById('histBg').classList.toggle('open');
+            renderHistory();
+        }
+
+        function saveToHistory(result, platform, url) {
+            history.unshift({
+                title: result.title,
+                author: result.author,
+                thumb: result.thumb,
+                platform: platform,
+                url: url,
+                hdUrl: result.hdUrl,
+                sdUrl: result.sdUrl,
+                audioUrl: result.audioUrl,
+                stats: result.stats,
+                date: new Date().toISOString()
+            });
+            /* Limita a 30 itens */
+            if (history.length > 30) history = history.slice(0, 30);
+            localStorage.setItem('sv_hist', JSON.stringify(history));
+        }
+
+        function clearHist() {
+            history = [];
+            localStorage.removeItem('sv_hist');
+            renderHistory();
+            toast('Historico limpo.', 'ok');
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('histList');
+            if (history.length === 0) {
+                list.innerHTML = '<p class="text-sm text-center py-10" style="color:var(--muted)">Nenhum download ainda.</p>';
+                return;
+            }
+            list.innerHTML = history.map((item, i) => {
+                const badgeCls = item.platform === 'tiktok' ? 'badge-tt' : 'badge-kw';
+                const badgeTxt = item.platform === 'tiktok' ? 'TT' : 'KW';
+                const time = timeAgo(item.date);
+                return `
+                    <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[.03] transition cursor-pointer mb-2" onclick="redownload(${i})">
+                        <div class="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800">
+                            ${item.thumb ? `<img src="${item.thumb}" alt="" class="w-full h-full object-cover">` : '<div class="w-full h-full flex items-center justify-center"><i class="fas fa-video text-xs" style="color:var(--muted)"></i></div>'}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium truncate">${item.title}</p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="${badgeCls} text-[10px] font-bold px-1.5 py-0.5 rounded">${badgeTxt}</span>
+                                <span class="text-[11px]" style="color:var(--muted)">${time}</span>
+                            </div>
+                        </div>
+                        <i class="fas fa-redo text-xs" style="color:var(--muted)"></i>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function redownload(index) {
+            const item = history[index];
+            if (!item) return;
+            currentResult = {
+                hdUrl: item.hdUrl,
+                sdUrl: item.sdUrl,
+                audioUrl: item.audioUrl,
+                thumb: item.thumb,
+                title: item.title,
+                author: item.author,
+                stats: item.stats || ''
+            };
+            showResult(currentResult, item.platform);
+            toggleHist();
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            toast('Video carregado do historico.', 'ok');
+        }
+
+        /* ===================== UTILITÁRIOS ===================== */
+        function formatNum(n) {
+            if (!n) return '0';
+            n = parseInt(n);
+            if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+            return n.toString();
+        }
+
+        function sanitizeFilename(name) {
+            return (name || 'video').replace(/[<>:"/\\|?*]/g, '').substring(0, 60).trim() || 'video';
+        }
+
+        function timeAgo(dateStr) {
+            const diff = Date.now() - new Date(dateStr).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'agora';
+            if (mins < 60) return `${mins}min`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return `${hrs}h`;
+            const days = Math.floor(hrs / 24);
+            if (days < 30) return `${days}d`;
+            return `${Math.floor(days / 30)}m`;
+        }
+
+        /* ===================== SCROLL REVEAL ===================== */
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('vis'); observer.unobserve(e.target); } });
+        }, { threshold: 0.15 });
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        /* ===================== INIT ===================== */
+        renderHistory();
+    </script>
+</body>
+</html>
