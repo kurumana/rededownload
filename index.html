@@ -3,53 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Insta Video Downloader</title>
+  <title>Insta Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: Arial; text-align: center; padding: 50px; background: #f0f0f0; }
-    input { width: 80%; max-width: 500px; padding: 15px; font-size: 18px; }
-    button { padding: 15px 30px; font-size: 18px; margin: 20px; }
-    #result { margin-top: 30px; }
+    body { background: linear-gradient(135deg, #1e3a8a, #7e22ce); }
   </style>
 </head>
-<body>
-  <h1>Baixar Vídeo do Instagram</h1>
-  <p>Cole o link do Reel/Post:</p>
-  <input type="text" id="url" placeholder="https://www.instagram.com/reel/..." />
-  <br>
-  <button onclick="baixarVideo()">Baixar</button>
+<body class="min-h-screen text-white">
+  <div class="max-w-xl mx-auto pt-20 px-4">
+    <h1 class="text-4xl font-bold text-center mb-2">📥 Insta Video Downloader</h1>
+    <p class="text-center mb-8">Baixe Reels e Vídeos do Instagram facilmente</p>
 
-  <div id="result"></div>
+    <div class="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-xl">
+      <input 
+        type="text" 
+        id="urlInput"
+        placeholder="Cole o link do Reel ou Post aqui..."
+        class="w-full p-4 rounded-xl bg-white/20 border border-white/30 focus:outline-none focus:border-white text-lg"
+      >
+      <button 
+        onclick="baixar()"
+        class="mt-6 w-full bg-pink-600 hover:bg-pink-700 py-4 rounded-xl font-semibold text-lg transition">
+        Baixar Vídeo
+      </button>
+
+      <div id="result" class="mt-8"></div>
+    </div>
+
+    <p class="text-center text-xs mt-8 opacity-70">
+      Funciona melhor em Reels públicos • Sem login necessário
+    </p>
+  </div>
 
   <script>
-    async function baixarVideo() {
-      const urlInput = document.getElementById('url').value.trim();
-      const resultDiv = document.getElementById('result');
-      resultDiv.innerHTML = "Processando...";
+    async function baixar() {
+      const url = document.getElementById('urlInput').value.trim();
+      const result = document.getElementById('result');
+      
+      if (!url) return alert("Cole um link!");
 
-      if (!urlInput.includes('instagram.com')) {
-        resultDiv.innerHTML = "Link inválido!";
-        return;
-      }
+      result.innerHTML = `<p class="text-center">🔄 Processando...</p>`;
 
       try {
-        // Exemplos de APIs públicas (testar qual está funcionando)
-        const apis = [
-          `https://api.instagram.com/oembed?url=${encodeURIComponent(urlInput)}`, // só metadata
-          `https://instagram-downloader-api.example.com/download?url=${encodeURIComponent(urlInput)}` // substitua por uma real
-        ];
+        const res = await fetch(`/.netlify/functions/download?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
 
-        // Aqui você pode usar um serviço gratuito como:
-        // - https://dlpanda.com (ou similares)
-        // - Ou criar sua própria Netlify Function
-
-        resultDiv.innerHTML = `
-          <p>Como o Instagram bloqueia direto no navegador, recomendo usar um serviço como:</p>
-          <a href="https://dlpanda.com" target="_blank">DLPanda</a> ou 
-          <a href="https://snapinsta.app" target="_blank">SnapInsta</a><br><br>
-          <strong>Ou vamos criar uma Netlify Function juntos.</strong>
-        `;
+        if (data.success) {
+          result.innerHTML = `
+            <div class="bg-green-500/20 p-6 rounded-xl text-center">
+              <p class="mb-4">✅ Vídeo encontrado!</p>
+              <a href="${data.downloadUrl}" 
+                 target="_blank"
+                 class="inline-block bg-white text-black font-bold px-8 py-3 rounded-xl hover:bg-gray-200">
+                ⬇️ Baixar Agora
+              </a>
+            </div>
+          `;
+        } else {
+          result.innerHTML = `<p class="text-red-400 text-center">${data.error}</p>`;
+        }
       } catch (e) {
-        resultDiv.innerHTML = "Erro ao processar.";
+        result.innerHTML = `<p class="text-red-400">Erro de conexão. Tente novamente.</p>`;
       }
     }
   </script>
