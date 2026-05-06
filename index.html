@@ -3,41 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kwai Downloader - Sem Marca d'Água</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <title>Insta Video Downloader</title>
   <style>
-    body { background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
-    .card { background: rgba(255,255,255,0.95); }
+    body { font-family: Arial; text-align: center; padding: 50px; background: #f0f0f0; }
+    input { width: 80%; max-width: 500px; padding: 15px; font-size: 18px; }
+    button { padding: 15px 30px; font-size: 18px; margin: 20px; }
+    #result { margin-top: 30px; }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-  <div class="max-w-lg w-full card rounded-3xl shadow-2xl p-8">
-    <div class="text-center mb-8">
-      <h1 class="text-4xl font-bold text-blue-600">Kwai Downloader</h1>
-      <p class="text-gray-600 mt-2">Baixe vídeos sem marca d'água</p>
-    </div>
+<body>
+  <h1>Baixar Vídeo do Instagram</h1>
+  <p>Cole o link do Reel/Post:</p>
+  <input type="text" id="url" placeholder="https://www.instagram.com/reel/..." />
+  <br>
+  <button onclick="baixarVideo()">Baixar</button>
 
-    <div class="space-y-4">
-      <input 
-        type="text" 
-        id="urlInput"
-        placeholder="Cole o link do Kwai aqui..."
-        class="w-full px-5 py-4 rounded-2xl border border-gray-300 focus:outline-none focus:border-blue-500 text-lg"
-      >
-      
-      <button 
-        onclick="baixarVideo()"
-        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-2xl text-xl transition flex items-center justify-center gap-3"
-      >
-        <i class="fas fa-download"></i>
-        BAIXAR VÍDEO
-      </button>
-    </div>
+  <div id="result"></div>
 
-    <div id="resultado" class="mt-6"></div>
-  </div>
+  <script>
+    async function baixarVideo() {
+      const urlInput = document.getElementById('url').value.trim();
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = "Processando...";
 
-  <script src="script.js"></script>
+      if (!urlInput.includes('instagram.com')) {
+        resultDiv.innerHTML = "Link inválido!";
+        return;
+      }
+
+      try {
+        // Exemplos de APIs públicas (testar qual está funcionando)
+        const apis = [
+          `https://api.instagram.com/oembed?url=${encodeURIComponent(urlInput)}`, // só metadata
+          `https://instagram-downloader-api.example.com/download?url=${encodeURIComponent(urlInput)}` // substitua por uma real
+        ];
+
+        // Aqui você pode usar um serviço gratuito como:
+        // - https://dlpanda.com (ou similares)
+        // - Ou criar sua própria Netlify Function
+
+        resultDiv.innerHTML = `
+          <p>Como o Instagram bloqueia direto no navegador, recomendo usar um serviço como:</p>
+          <a href="https://dlpanda.com" target="_blank">DLPanda</a> ou 
+          <a href="https://snapinsta.app" target="_blank">SnapInsta</a><br><br>
+          <strong>Ou vamos criar uma Netlify Function juntos.</strong>
+        `;
+      } catch (e) {
+        resultDiv.innerHTML = "Erro ao processar.";
+      }
+    }
+  </script>
 </body>
 </html>
