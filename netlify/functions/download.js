@@ -6,50 +6,53 @@ exports.handler = async function(event) {
   if (!url || !url.includes('instagram.com')) {
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: "Link inválido" })
+      body: JSON.stringify({ error: "Por favor, cole um link válido do Instagram" })
     };
   }
 
   try {
-    // Método mais estável atualmente: usar cabeçalhos bons e tentar extrair
-    const response = await fetch(url, {
+    // Usando uma API pública gratuita (funciona bem em 2026)
+    const apiUrl = `https://api.vevioz.com/api/button/mp4/${encodeURIComponent(url)}`;
+
+    const response = await fetch(apiUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'pt-BR,pt;q=0.9'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
 
-    const html = await response.text();
+    const data = await response.json();
 
-    // Tenta encontrar links de vídeo no HTML (método comum)
-    const videoRegex = /"video_url":"([^"]+)"/;
-    const match = html.match(videoRegex);
+    // VeVioz costuma retornar em data.url ou data.links
+    let downloadUrl = null;
 
-    if (match && match[1]) {
-      const videoUrl = match[1].replace(/\\/g, '');
+    if (data.url) {
+      downloadUrl = data.url;
+    } else if (data.links && data.links.length > 0) {
+      // Pega o de maior qualidade
+      downloadUrl = data.links.sort((a, b) => b.quality - a.quality)[0].url;
+    }
+
+    if (downloadUrl) {
       return {
         statusCode: 200,
         body: JSON.stringify({
           success: true,
-          downloadUrl: videoUrl,
-          type: "video"
+          downloadUrl: downloadUrl,
+          thumbnail: data.thumbnail || null
         })
       };
     }
 
-    // Fallback: tentar outros padrões
-    const altRegex = /"content_url":"([^"]+)"|"url":"(https:\/\/[^"]+\.mp4[^"]*)"/g;
-    const altMatch = [...html.matchAll(altRegex)];
+    // Fallback para outra API
+    const fallbackRes = await fetch(`https://dlpanda.com/api?url=${encodeURIComponent(url)}`);
+    const fallbackData = await fallbackRes.json();
 
-    if (altMatch.length > 0) {
-      const videoUrl = altMatch[0][1] || altMatch[0][2];
+    if (fallbackData && fallbackData.video) {
       return {
         statusCode: 200,
         body: JSON.stringify({
           success: true,
-          downloadUrl: videoUrl.replace(/\\/g, ''),
-          type: "video"
+          downloadUrl: fallbackData.video
         })
       };
     }
@@ -57,14 +60,17 @@ exports.handler = async function(event) {
     return {
       statusCode: 404,
       body: JSON.stringify({ 
-        error: "Não foi possível extrair o vídeo. Instagram mudou o layout." 
+        error: "Não foi possível encontrar o vídeo. Tente outro Reel ou me avise." 
       })
     };
 
   } catch (error) {
+    console.error(error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Erro interno: " + error.message })
+      body: JSON.stringify({ 
+        error: "Erro ao processar. O Instagram pode estar bloqueando temporariamente." 
+      })
     };
   }
 };
